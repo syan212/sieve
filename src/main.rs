@@ -13,37 +13,98 @@ static ODD_WHEEL: [u8; 255255] = {
 };
 
 fn main() {
-    let n: usize = 1_000_000_000;
-    println!("Intialising table...");
+    let n: usize = 100_000_000;
+    let segment_size = (n as f32).sqrt() as usize; 
+    println!("Initialising table...");
     // Initialise from odd-only wheel
     let mut table: Vec<u8> = ODD_WHEEL
         .iter()
         .cycle()
-        .take((n + 1) / 2)
+        .take((segment_size + 1) / 2)
         .copied()
         .collect();
     // 1 is not prime
     table[0] = 0;
     let mut p: usize = 19;
-    println!("Sieving...");
-    while p * p <= n {
+    // First segement sieve (normal)
+    println!("Sieving chunk 1...");
+    while p * p <= segment_size {
         let mut i = (p * p) / 2;
         while i < table.len() {
             table[i] = 0;
             i += p;
         }
-        println!("Eliminated all multiples of {}", p);
         p += 2;
         while p <= n && table[p / 2] == 0 {
             p += 2;
         }
     }
-    println!("Collecting primes...");
+    // Collect primes in first segement
+    println!("Collecting primes in chunk 1...");
     let mut primes = Vec::new();
-    primes.push(2);
-    for (i, &b) in table.iter().enumerate() {
+    for (i, &b) in table.iter().take(segment_size).enumerate() {
         if b == 1 {
             primes.push(2 * i + 1);
+        }
+    }
+    println!("Processing chunks...");
+    let mut i = 0;
+    let chunk_amount = n / segment_size;
+    let mut segmentation_primes: Vec<usize> = primes[5..].to_vec();
+    while i < chunk_amount {
+        let start = 2 * (i + 1) * segment_size / 2 + 1;
+        let odd_segment_size = if start + segment_size > n {
+            (n - start) / 2 + 1
+        } else {
+            segment_size / 2
+        };
+        if start > n {
+            break;
+        }
+        // Get segment
+        let mut segment: Vec<u8>= ODD_WHEEL
+            .iter()
+            .cycle()
+            .skip(start/ 2)
+            .take(odd_segment_size)
+            .copied()
+            .collect();
+        sieve_segment(&mut segmentation_primes, &mut segment, start);
+        i += 1;
+    }
+    primes = vec![2, 3, 5, 7, 11, 13, 17];
+    primes.extend(segmentation_primes.iter());
+    // println!("Primes: {:?}", primes);
+    println!("Number of primes: {}", primes.len());
+}
+
+fn sieve_segment(primes: &mut Vec<usize>, segment: &mut Vec<u8>, start: usize) {
+    println!("Sieving chunk {start}...");
+    let mut i = 0;
+    let mut p = primes[0];
+    let up = start + 2 * segment.len();
+    // Sieve
+    while p * p <= up {
+        i += 1;
+        if let Some(pr) = primes.get(i - 1) {
+            p = *pr;
+            let mut j = p * p;
+            while j < start {
+                j += 2 * p;
+            }
+            while j < up {
+                segment[(j - start) / 2] = 0;
+                j += 2 * p;
+            }
+        } else {
+            break;
+        }
+    }
+    println!("Collecting primes in chunk {start}...");
+    // Collect primes
+    for (i, &b) in segment.iter().enumerate() {
+        if b == 1 {
+            primes.push(2 * i + start);
         }
     }
 }
