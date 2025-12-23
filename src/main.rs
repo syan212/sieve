@@ -13,16 +13,12 @@ static ODD_WHEEL: [u8; 255255] = {
 };
 
 fn main() {
-    let n: usize = 100_000_000;
-    let segment_size = (n as f32).sqrt() as usize; 
+    let n: usize = 1_000_000_000;
+    // let segment_size = (n as f32).sqrt() as usize;
+    let segment_size = n / 5;
     println!("Initialising table...");
     // Initialise from odd-only wheel
-    let mut table: Vec<u8> = ODD_WHEEL
-        .iter()
-        .cycle()
-        .take((segment_size + 1) / 2)
-        .copied()
-        .collect();
+    let mut table: Vec<u8> = repeated_range(&ODD_WHEEL, 0, (segment_size + 1) / 2);
     // 1 is not prime
     table[0] = 0;
     let mut p: usize = 19;
@@ -42,16 +38,14 @@ fn main() {
     // Collect primes in first segement
     println!("Collecting primes in chunk 1...");
     let mut primes = Vec::new();
-    for (i, &b) in table.iter().take(segment_size).enumerate() {
+    for (i, &b) in table.iter().enumerate() {
         if b == 1 {
             primes.push(2 * i + 1);
         }
     }
     println!("Processing chunks...");
     let mut i = 0;
-    let chunk_amount = n / segment_size;
-    let mut segmentation_primes: Vec<usize> = primes[5..].to_vec();
-    while i < chunk_amount {
+    while i < n / segment_size {
         let start = 2 * (i + 1) * segment_size / 2 + 1;
         let odd_segment_size = if start + segment_size > n {
             (n - start) / 2 + 1
@@ -62,18 +56,11 @@ fn main() {
             break;
         }
         // Get segment
-        let mut segment: Vec<u8>= ODD_WHEEL
-            .iter()
-            .cycle()
-            .skip(start/ 2)
-            .take(odd_segment_size)
-            .copied()
-            .collect();
-        sieve_segment(&mut segmentation_primes, &mut segment, start);
+        let mut segment = repeated_range(&ODD_WHEEL, start / 2, start / 2 + odd_segment_size);
+        sieve_segment(&mut primes, &mut segment, start);
         i += 1;
     }
-    primes = vec![2, 3, 5, 7, 11, 13, 17];
-    primes.extend(segmentation_primes.iter());
+    primes.insert(0, 2);
     // println!("Primes: {:?}", primes);
     println!("Number of primes: {}", primes.len());
 }
@@ -119,3 +106,18 @@ const fn has_prime_proper_divisor(num: usize) -> bool {
         || (num % 13 == 0 && num != 13)
         || (num % 17 == 0 && num != 17)
 }
+
+/// Helper function to repeat range
+#[inline(always)]
+fn repeated_range<'a>(
+    list: &'a [u8],
+    n: usize,
+    x: usize,
+) -> Vec<u8> {
+    (n..x)
+    .map(move |i| unsafe {
+        *list.get_unchecked(i % list.len())
+    })
+    .collect()
+}
+
